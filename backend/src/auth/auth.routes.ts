@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { signup } from "./auth.controller.js";
-const router=Router()
+import { signupSchema } from "./auth.validator.js";
+import { validate } from "../middleware/validate.js";
 
-router.post("/signup",signup)
+const router=Router()
+router.post("/signup",validate(signupSchema),signup)
+
 
 export default router;
