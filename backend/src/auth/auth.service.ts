@@ -5,6 +5,10 @@ type SignupData={
     email:string,
     password:string
 }
+type SignIn={
+    email:string,
+    password:string
+}
 export const signupService=async (data:SignupData)=>{   
    const userExists= await prisma.user.findUnique({
         where:{
@@ -23,4 +27,22 @@ export const signupService=async (data:SignupData)=>{
         },
     })
     return user
+}
+
+export const signinService=async (data:SignIn)=>{
+
+    const userExists= await prisma.user.findUnique({
+        where:{
+            email:data.email,
+        }
+    })
+    if(!userExists){
+        throw new Error("Invalid credentials");
+    }
+    const isValidPassword = await bcrypt.compare(data.password,userExists.password)
+    if(!isValidPassword){
+        throw new Error("invalid credentials");
+    }
+    return userExists
+
 }

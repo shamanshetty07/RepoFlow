@@ -1,5 +1,5 @@
 import  type {Request,Response} from "express";
-import { signupService } from "./auth.service.js";
+import { signupService , signinService } from "./auth.service.js";
 
 export const signup=async (req:Request,res:Response)=>{
 
@@ -14,4 +14,21 @@ export const signup=async (req:Request,res:Response)=>{
             message:"User already exists"
         })
     }
+}
+
+export const signin=async (req:Request,res:Response)=>{
+    const {email,password} = req.body
+    try{
+        const result=await signinService({
+            email,
+            password
+        })
+    
+    return res.status(201).json(result)}
+    catch(err){
+       return res.status(411).json({
+            message:"Invalid credentials"
+        })
+    }
+
 }
