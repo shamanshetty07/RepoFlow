@@ -1,5 +1,7 @@
 import prisma from "../config/prisma.js"
 import bcrypt from "bcrypt"
+import jwt from "jsonwebtoken"
+import{env } from "../config/env.js"
 
 type SignupData={
     name:string,
@@ -27,7 +29,12 @@ export const signupService=async (data:SignupData)=>{
         password:hashedPassword
         },
     })
-    return user
+    const token= jwt.sign({
+        id:user.id,
+        email:user.email
+},env.JWT_SECRET,{
+    expiresIn:"7d"
+})
 }
 
 export const signinService=async (data:SignIn)=>{
@@ -38,12 +45,27 @@ export const signinService=async (data:SignIn)=>{
         }
     })
     if(!userExists){
-        throw new Error("Invalid credentials");
+        throw new Error("invalid credentials");
     }
     const isValidPassword = await bcrypt.compare(data.password,userExists.password)
     if(!isValidPassword){
         throw new Error("invalid credentials");
     }
-    return userExists
-
+    const token=jwt.sign({
+            id:userExists.id,
+            email:userExists.email
+        },env.JWT_SECRET,
+        {
+            expiresIn:"7d"
+        }
+    );
+   return {
+    token,
+    user: {
+        id: userExists.id,
+        name: userExists.name,
+        email: userExists.email,
+    },
+};
+    
 }
