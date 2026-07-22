@@ -1,4 +1,4 @@
-import  type {Request,Response} from "express";
+import  type { Request,Response} from "express";
 import { signupService , signinService } from "./auth.service.js";
 
 export const signup=async (req:Request,res:Response)=>{
@@ -30,5 +30,11 @@ export const signin=async (req:Request,res:Response)=>{
             message:"Invalid credentials"
         })
     }
+
+}
+
+export const me= (req:Request,res:Response)=>{
+    const name=req.user.name
+    
 
 }
