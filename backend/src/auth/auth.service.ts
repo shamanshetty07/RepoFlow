@@ -38,6 +38,14 @@ export const signupService=async (data:SignupData)=>{
 },env.JWT_SECRET,{
     expiresIn:"7d"
 })
+    return {
+        token,
+        user:{
+            id:user.id,
+            name:user.name,
+            email:user.email
+        }
+    }
 }
 
 export const signinService=async (data:SignIn)=>{
