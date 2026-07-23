@@ -13,9 +13,7 @@ type SignIn={
     password:string
 }
 type meData={
-    email:string,
-    name:string,
-    id:string
+    id:number
 }
 export const signupService=async (data:SignupData)=>{   
    const userExists= await prisma.user.findUnique({
@@ -77,15 +75,19 @@ export const signinService=async (data:SignIn)=>{
 
 
 export const  meService=async (data:meData)=>{
-    const name=data.name;
-    const email=data.email;
     const id=data.id;
 
     const user=await prisma.user.findUnique({
         where:{
-            email:email
+            id:id
  }
     })
-    
-
+    if(!user){
+        throw new Error("User not found")
+    }
+    return {
+        id:user.id,
+        email:user.email,
+        name:user.name
+    }
 }

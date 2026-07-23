@@ -1,5 +1,5 @@
 import  type { Request,Response} from "express";
-import { signupService , signinService } from "./auth.service.js";
+import { signupService , signinService , meService } from "./auth.service.js";
 
 export const signup=async (req:Request,res:Response)=>{
 
@@ -10,7 +10,7 @@ export const signup=async (req:Request,res:Response)=>{
     })
     return res.status(201).json(result);}
     catch(err){
-        return res.status(409).json({
+        return res.status(404).json({
             message:"User already exists"
         })
     }
@@ -24,17 +24,29 @@ export const signin=async (req:Request,res:Response)=>{
             password
         })
     
-    return res.status(201).json(result)}
+    return res.status(200).json(result)}
     catch(err){
-       return res.status(411).json({
+       return res.status(401).json({
             message:"Invalid credentials"
         })
     }
 
 }
 
-export const me= (req:Request,res:Response)=>{
-    const name=req.user.name
-    
+export const me= async (req:Request,res:Response)=>{
+    try{
+        if(!req.user){
+            throw new Error("unauthorized acess")
+        }
+        const id=req.user.id;
+    const user=await meService({
+       id
+    })
+    return res.status(200).json(user)}
+    catch{
+        return res.status(401).json({
+            message:"invalid credentials"
+        })
+    }
 
 }
