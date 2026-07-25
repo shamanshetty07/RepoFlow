@@ -9,3 +9,4 @@ router.post("/signup",validate(signupSchema),signup)
 router.post("/signin",validate(signinSchema),signin)
 router.post("/me",authMiddleware,me)
 export default router;
+
