@@ -1,0 +1,268 @@
+# RepoFlow — Complete Backend Architecture Blueprint
+
+This document is the full design blueprint for RepoFlow: an AI-powered platform that lets developers paste a GitHub URL, clone the repo, browse it in an editor, and chat with an AI that understands the code.
+
+The philosophy throughout: **build a clean modular monolith today, in a way that doesn't require rewrites tomorrow.** Every folder and service below either solves a problem you have right now, or removes friction from a phase you already know is coming (queues, embeddings, object storage). Nothing is here "just in case."
+
+---
+
+## 1. Folder Structure
+
+```
+src/
+├── auth/
+├── repository/
+├── git/
+├── indexing/
+├── chat/
+├── ai/
+├── jobs/
+├── utils/
+├── common/
+└── config/
+```
+
+
+Why each one exists:
+
+- **`auth/`** — Signup, signin, JWT issuing/verification, the `/me` endpoint, protected-route middleware. This is a domain in its own right and shouldn't leak into other modules. Already done in your project.
+
+- **`repository/`** — The "brain" of a repository's lifecycle. Owns the Repository database model, owns the state machine (PENDING → CLONING → ... → READY/FAILED), and orchestrates the other modules (Git, indexing) without doing their work itself. Think of it as a conductor, not a musician.
+
+- **`git/`** — Every git operation lives here: cloning, and later deleting, pulling updates, listing branches. This is a distinct domain because git operations have their own failure modes (timeouts, invalid URLs, disk space, auth for private repos later) that have nothing to do with your database or business rules.
+
+- **`indexing/`** — Everything that turns a cloned repository into something an AI can reason about: walking the file tree, parsing with tree-sitter, chunking code semantically, generating embeddings, writing them to pgvector. This is intentionally separate from `ai/` — indexing is a *pipeline*, AI is a *capability*.
+
+- **`chat/`** — The conversational layer: receiving a user's question, retrieving relevant chunks (RAG), calling the AI provider, returning an answer, storing conversation history. Depends on both `indexing/` (for retrieval) and `ai/` (for generation), but neither of those depend on it.
+
+- **`ai/`** — The AI provider abstraction. Defines a generic interface (`embed()`, `chat()`) and holds the concrete implementations (OpenAI, Gemini, Claude). No other module should import a specific provider's SDK directly — they only ever talk to the interface.
+
+- **`jobs/`** — Once BullMQ arrives in Phase 2, this is where queue definitions, job producers, and worker processors live. In Phase 1, before jobs exist, this folder can either be empty or hold the async wrapper functions that will later be called *from* a worker instead of directly from a service.
+
+- **`utils/`** — Small, stateless, reusable helpers with no business logic and no side effects: `github.ts` (parse/validate GitHub URLs), `jwt.ts`, `filesystem.ts` (path building, cleanup). A utility function should be safely callable from any module without creating a dependency tangle.
+
+- **`common/`** — Shared building blocks that many modules need: custom error classes, shared Zod schemas, response envelope types, middleware that isn't auth-specific (e.g. a global error handler). This is different from `utils/` — `common/` holds *shared types and contracts*, `utils/` holds *shared logic*.
+
+- **`config/`** — Environment variable loading and validation (ideally validated with Zod at startup, so a missing `REPO_STORAGE_PATH` fails loudly at boot, not silently at 2am when a user tries to clone something). Also holds constants like storage paths, timeouts, and size limits.
+
+---
+
+## 2. Module Responsibilities
+
+The rule that keeps a modular monolith clean over time: **a module should be swappable without the rest of the app noticing.** If you could delete `git/` and drop in a completely different git implementation without touching `repository/`, the boundary is correct.
+
+| Module | Belongs here | Should NEVER be here | Who can call it |
+|---|---|---|---|
+| `auth/` | Password hashing, JWT logic, session/token validation | Repository or AI logic | `repository/`, `chat/` (to identify the current user) |
+| `repository/` | Repository CRUD, state transitions, orchestrating clone + index | Raw git commands, AI calls, HTTP-specific error formatting | Controllers only |
+| `git/` | Spawning git processes, clone/delete/pull operations | Prisma calls, knowledge of "repository status", HTTP responses | `repository/` only |
+| `indexing/` | File walking, tree-sitter parsing, chunking, embedding generation | Chat conversation logic, HTTP handling | `repository/` (to trigger it), `chat/` (to query it) |
+| `chat/` | Conversation state, retrieval orchestration, prompt assembly | Raw provider SDK calls, embedding generation logic | Controllers only |
+| `ai/` | Provider interface + implementations | Business logic about repositories or chats | `indexing/`, `chat/` |
+| `jobs/` | Queue definitions, job scheduling, worker entrypoints | Business logic itself (jobs call services, they don't reimplement them) | `repository/`, `indexing/` (as producers) |
+| `utils/` | Pure functions: parsing, formatting, path building | Database calls, network calls, business decisions | Anyone |
+| `common/` | Error classes, shared types, generic middleware | Module-specific logic | Anyone |
+
+The single most important rule in this table: **`git/` should not know Prisma exists, and `repository/` should not know how `git clone` actually works.** That boundary is what lets you swap local cloning for a sandboxed container-based clone later without touching a single line of `RepositoryService`.
+
+---
+
+## 3. Request Flow — Walking Through `POST /repositories/import`
+
+```
+Client
+  │  POST /repositories/import  { githubUrl }
+  ▼
+Route                    (repository/repository.routes.ts)
+  │  maps the URL + method to a controller function
+  ▼
+Validation               (Zod schema)
+  │  is githubUrl a string? Is it a well-formed URL?
+  │  rejects garbage before it touches any business logic
+  ▼
+Controller                (repository/repository.controller.ts)
+  │  extracts the authenticated user from the request
+  │  calls the service, has zero business logic itself
+  ▼
+RepositoryService         (repository/repository.service.ts)
+  │  parses/validates the URL is a real GitHub repo shape (via utils/github.ts)
+  │  creates the Repository row with status = PENDING
+  │  calls GitService.clone(...)
+  ▼
+GitService                (git/git.service.ts)
+  │  runs an async git clone into local storage
+  │  returns a result or throws a typed error
+  ▼
+back in RepositoryService
+  │  on success: update status → CLONED
+  │  on failure: catch the typed error, update status → FAILED
+  ▼
+Response
+     201 Created with the repository record and its current status
+```
+
+**What each layer's job actually is, in one sentence:**
+
+- **Route**: "Which function handles this URL?" — nothing else.
+- **Validation**: "Is this request shaped correctly?" — rejects bad input before any business code runs.
+- **Controller**: "Translate HTTP into a function call, and a function's return value back into HTTP." No decisions happen here.
+- **Service**: "What should actually happen, in what order, and what do we do if a step fails?" This is where business logic lives.
+- **GitService / other domain services**: "Do one specific technical thing well, and report success or failure honestly." No opinions about what happens next.
+
+If you ever find yourself writing an `if` statement about *business rules* inside a controller, or a Prisma call inside `GitService`, that's the signal the boundary has been crossed.
+
+---
+
+## 4. Services
+
+- **`RepositoryService`** — Owns the repository lifecycle end to end. Creates records, transitions status, decides what "failure" means for the business (not just for git), and delegates the actual technical work to `GitService` and (later) `IndexingService`.
+
+- **`GitService`** — Wraps every git operation. Phase 1: clone. Later: delete, pull, list branches. Deliberately dumb about *why* it's being asked to clone something — it just does the operation and reports the outcome.
+
+- **`IndexingService`** (Phase 3) — Given a cloned repository's local path, walks the files, runs tree-sitter to extract functions/classes, chunks them semantically, calls `AIService.embed()` on each chunk, and writes the vectors to pgvector. This is the pipeline that turns "a folder of code" into "something searchable by meaning."
+
+- **`ChatService`** (Phase 3) — Given a user's question and a repository ID, retrieves the most relevant chunks (via `IndexingService`'s search capability), assembles a prompt, calls `AIService.chat()`, and returns/stores the answer.
+
+- **`AIService`** (Phase 3) — The single point of contact for any AI provider. Exposes `embed(text)` and `chat(messages, context)`. Everything else in the app only ever calls these two methods — never an OpenAI or Anthropic SDK directly.
+
+- **`JobService`** (Phase 2) — Once BullMQ exists, this wraps adding jobs to queues (`queueCloneJob(repoId)`, `queueIndexJob(repoId)`) so that `RepositoryService` doesn't need to know BullMQ's API directly — it just calls `jobService.queueCloneJob(...)`, and what happens underneath (direct call vs. queued job) can change without touching `RepositoryService`.
+
+---
+
+## 5. Utilities
+
+- **`utils/github.ts`** — `parseGithubUrl(url)` → `{ owner, repository }`, plus validation (is this actually a GitHub URL, does it look well-formed). Kept separate from `GitService` because URL parsing is a pure, stateless, easily-testable operation with nothing to do with actually running git — and you'll likely want it elsewhere later (e.g. showing a repo preview before cloning).
+
+- **`utils/jwt.ts`** — Signing and verifying tokens. Already exists in your auth work; keeping it here (rather than inline in `auth/`) makes it reusable if another module ever needs to verify a token outside the standard middleware (e.g. a websocket connection authenticating itself).
+
+- **`utils/filesystem.ts`** — Building the local storage path for a given repository ID (`storage/repositories/<id>/`), checking disk space, cleaning up failed clones. Centralizing this means `REPO_STORAGE_PATH` is read from config in exactly one place, not scattered across the codebase.
+
+**The test for "does this belong in `utils/`?"**: could you unit test it with zero mocks — no database, no network, no filesystem side effects (except `filesystem.ts`, which is an intentional, narrow exception)? If yes, it's a utility. If it needs to talk to Prisma or an external API, it's a service.
+
+---
+
+## 6. Database
+
+**Should exist now:**
+
+- **`User`** — already built (id, email, password hash, timestamps).
+- **`Repository`** — id, githubUrl, status, userId, createdAt, updatedAt. Your instinct to keep this minimal is correct — resist adding fields "because you might need them."
+
+**Should be added exactly when the feature that needs them arrives — not before:**
+
+- A `failureReason` field (or a small enum) on `Repository` — add it when you build the typed git errors in Phase 1, since at that point you'll actually have a reason to store.
+- A `RepositoryChunk` or `Embedding` table — add it in Phase 3, alongside pgvector, when indexing actually produces vectors to store.
+- A `Conversation` / `Message` table — add it in Phase 3 when chat history becomes a real feature, not before.
+- A `Job` table (optional — BullMQ can track job state in Redis alone) — only add a database mirror of job state if you find yourself needing to query job history in ways Redis doesn't support well.
+
+The guiding rule from your own design principles applies directly here: **every new column should solve a problem the current phase actually has.** A `failureReason` column sitting empty for two phases is exactly the kind of premature schema bloat you're right to avoid.
+
+---
+
+## 7. Repository Lifecycle
+
+```
+PENDING
+   │   (record created, nothing has happened yet)
+   ▼
+CLONING
+   │   (GitService is actively running `git clone`)
+   ▼
+CLONED
+   │   (files exist on disk, not yet analyzed)
+   ▼
+INDEXING
+   │   (tree-sitter parsing, chunking, embedding generation)
+   ▼
+READY
+   (chat is now possible)
+
+At any point, a step can instead lead to:
+   ▼
+FAILED
+```
+
+**Who changes the status, and when:**
+
+- `RepositoryService` is the *only* module allowed to write to the `status` field. This is important — if `GitService` or `IndexingService` could also write status directly, you'd end up with race conditions and status changes scattered across the codebase with no single source of truth.
+- `RepositoryService` sets `PENDING` at creation, `CLONING` right before calling `GitService.clone()`, and either `CLONED` or `FAILED` based on what `GitService` returns or throws.
+- Later, the same pattern repeats for `INDEXING` → `READY`/`FAILED`, driven by `IndexingService`'s result.
+- This is exactly why `GitService` throwing *typed* errors (`GitCloneError`, `GitTimeoutError`, `GitRepositoryNotFoundError`) matters — `RepositoryService` can catch a specific error type and decide precisely what "failed" means and why, without `GitService` ever needing to know about HTTP or the database.
+
+---
+
+## 8. Error Handling
+
+- **Where errors are thrown**: at the lowest level that detects the problem. `GitService` throws when a clone fails — it doesn't know or care what happens next, it just reports the failure honestly and specifically.
+- **Where errors are caught**: one layer up, in the service that owns the business decision. `RepositoryService` catches `GitService`'s errors because *it* is the one that knows "a failed clone means this repository's status becomes FAILED."
+- **Custom error classes**: define a small hierarchy in `common/errors.ts` — a base `AppError` with a `statusCode`, and specific subclasses (`GitCloneError`, `GitTimeoutError`, `GitRepositoryNotFoundError`, `ValidationError`, `NotFoundError`). This lets a single global error-handling middleware map any thrown error to the right HTTP response, instead of every controller writing its own try/catch-and-format logic.
+- **Where HTTP responses are returned**: only in the global error-handling middleware (or the controller, for the success path). No service should ever construct an HTTP response or status code — that keeps services testable and reusable outside of an HTTP context (e.g. from a worker, which has no HTTP request/response at all).
+
+The pattern to internalize: **low layers throw specific, honest errors. Middle layers catch and translate them into business decisions. The outermost layer translates business decisions into HTTP.** Nobody skips a layer.
+
+---
+
+## 9. Storage
+
+- **Where repositories are cloned**: `storage/repositories/<repositoryId>/`, with the base path read from an environment variable — `REPO_STORAGE_PATH` — never hardcoded. This one line of indirection is what makes moving to object storage in Phase 4 a config change instead of a code change in every module that touches file paths.
+- **How storage is organized**: one folder per repository, named by its database ID, not by repo name (names collide, IDs don't). Add `storage/` to both `.gitignore` and `.dockerignore` immediately so a cloned repo never accidentally ends up in your own git history or Docker image.
+- **What should be configurable via env vars**: the storage base path, clone timeout (seconds), max repo size, max concurrent clones (later, when workers exist). Anything that's a "limit" or a "location" belongs in config, not as a magic number buried in `GitService`.
+
+---
+
+## 10. AI Architecture (Design Only — Not Implemented Yet)
+
+- **Where AI code lives**: entirely inside `ai/`. No other module imports an OpenAI, Gemini, or Anthropic SDK directly — ever. This is the single rule that keeps your AI provider replaceable.
+- **How to keep providers replaceable**: define one interface — conceptually, "something that can turn text into a vector" (`embed`) and "something that can turn a conversation + context into an answer" (`chat`). Every concrete provider (`OpenAIProvider`, `GeminiProvider`, `ClaudeProvider`) implements that same shape. The rest of the app — `indexing/` and `chat/` — only ever calls the interface, never a specific provider. Switching providers becomes a one-line change in configuration, not a search-and-replace across the codebase.
+- **How RAG fits in later**: `IndexingService` produces embeddings and stores them in pgvector. `ChatService`, when a user asks a question, embeds *the question* using the same `AIService.embed()`, searches pgvector for the closest chunks, and hands those chunks to `AIService.chat()` as context alongside the question. Retrieval and generation are two separate calls to the same abstraction — neither `ChatService` nor `IndexingService` needs to know which underlying provider is actually doing the work.
+
+---
+
+## 11. Background Jobs — What Changes When BullMQ Arrives
+
+**What changes:**
+
+- `RepositoryService` stops calling `await GitService.clone(...)` directly from the controller's request path. Instead, it calls `jobService.queueCloneJob(repositoryId)`, which adds a job to a Redis-backed queue, and the HTTP request returns immediately (`202 Accepted`) instead of waiting for the clone to finish.
+- A new, separate **worker process** is introduced — its only job is to pull jobs off the queue and execute them. This worker calls the exact same `GitService.clone(...)` function that used to be called directly from the request.
+- Status updates, instead of just being written to the database, are also pushed to the frontend in real time via SSE or WebSocket, since the client can no longer just wait for the HTTP response to know when cloning finished.
+
+**What stays exactly the same:**
+
+- `GitService.clone()` itself — its implementation, its signature, its typed errors — doesn't change at all. This is the entire point of having built it as an isolated, HTTP-agnostic service from day one.
+- `RepositoryService`'s logic for *what a successful or failed clone means* for the repository's status doesn't change either — it's just invoked from a worker's job handler instead of a controller.
+- The state machine (PENDING → CLONING → CLONED → ...) is identical. Async processing changes *who* triggers each transition and *when the client finds out*, not what the transitions are or what they mean.
+
+This is the payoff of the layered design from Phase 1: introducing background jobs is an *addition* (a queue, a worker process, a job service) rather than a *rewrite* of anything that already exists.
+
+---
+
+## 12. Scaling — From Single Developer to Production
+
+```
+Single developer, local storage, synchronous clone   (Phase 1)
+                        │
+                        ▼
+Async processing via queue + worker, real-time status  (Phase 2)
+                        │
+                        ▼
+AI understands code via RAG, chat becomes real          (Phase 3)
+                        │
+                        ▼
+Object storage, distributed autoscaled workers,
+caching, multi-repo support, production scale           (Phase 4)
+```
+
+Why this order avoids rewrites:
+
+- **Local storage → object storage** is safe to defer because every file path already goes through `utils/filesystem.ts` and `REPO_STORAGE_PATH`. Swapping the implementation behind that one utility, and pointing workers at S3/R2 instead of local disk, doesn't touch `RepositoryService`, `GitService`, or anything above them.
+- **Synchronous clone → queued clone** is safe to defer because `GitService` was written as an async, HTTP-agnostic function from the start. Whether it's awaited directly or awaited inside a job handler is invisible to `GitService` itself.
+- **Single worker → autoscaled worker pool** is safe to defer because a queue-consumer worker is inherently stateless per-job — scaling it from one process to many is an infrastructure decision (how many worker instances are running), not a code change.
+- **No AI → RAG-based chat** is safe to defer because the `ai/` interface was defined as a contract before any provider existed, so `indexing/` and `chat/` can be built against that contract without caring which provider eventually implements it.
+
+The throughline across all four phases: **every "later" problem was already given a seam to plug into, back when it was built.** That's what separates "we'll refactor when we get there" from "we designed for where we're going, without building it early." You've landed on the second one.
+
+---
+
+## Summary — The One Sentence Version
+
+Each module does exactly one job, talks to its neighbors only through services (never through shared database access), and every place where "the simple version today" will later need to become "the scalable version tomorrow" already has a clean seam — a service boundary, an interface, or a config variable — ready for that change to slot into.
