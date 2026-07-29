@@ -21,10 +21,13 @@ model User{
   password String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  repos Repo[]
 }
 
 model Repo{
   id Int @id @default(autoincrement())
   githubUrl  String
   status Status @default(PENDING)
+  userId Int
+  user User @relation(fields: [userId],references: [id])
 }
