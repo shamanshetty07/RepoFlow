@@ -11,9 +11,12 @@ export const importRepository= async(req:Request,res:Response)=>{
     
     try{
     const repository=await repoService.importRepository({githubUrl,userId});
+    repository.status="CLONING"
     return res.status(201).json(repository)
+    // start here
 }
     catch(error){
+        
         res.status(400).json({
             message:"Failed to import repository"
         })

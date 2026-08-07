@@ -1,6 +1,7 @@
 import { GitService } from "../git/git.service.js";
 import prisma from "../config/prisma.js";
 import { env } from "../config/env.js";
+import path from "path";
 
 
 type importRepositoryInput={
@@ -17,10 +18,13 @@ export class RespositoryService{
                 userId:userId
             }
         })
-        const destinationPath=path.join(process.cwd(),env.REPO_STORAGE_PATH,result.id)
-         await gitService.cloneRepository(githubUrl,destinationPath)
-         
-        
+        const destinationPath=path.join(process.cwd(),env.REPO_STORAGE_PATH,result.id.toString())
+        try {
+            await gitService.cloneRepository(githubUrl,destinationPath)
+        } catch(err){
+            throw err;
+        }
+
 
         return {
             githubUrl:result.githubUrl,
