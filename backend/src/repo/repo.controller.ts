@@ -1,8 +1,8 @@
-import type { Request,Response, NextFunction } from "express";
-import { RespositoryService } from "./repo.service.js";
+import type { Request,Response } from "express";
+import { RepositoryService } from "./repo.service.js";
     
 
-const repoService=new RespositoryService();
+const repoService=new RepositoryService();
 
 export const importRepository= async(req:Request,res:Response)=>{
     const githubUrl=req.body.githubUrl;
@@ -11,7 +11,7 @@ export const importRepository= async(req:Request,res:Response)=>{
     
     try{
     const repository=await repoService.importRepository({githubUrl,userId});
-    repository.status="CLONING"
+
     return res.status(201).json(repository)
     // start here
 }

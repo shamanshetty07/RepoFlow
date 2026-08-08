@@ -9,30 +9,49 @@ type importRepositoryInput={
     userId:number
 }
 const gitService=new GitService();
-export class RespositoryService{
+export class RepositoryService{
     async importRepository(data:importRepositoryInput){
         const { githubUrl, userId } = data;
         const result = await prisma.repo.create({
             data:{
                 githubUrl:githubUrl,
-                userId:userId
+                userId:userId,
+                status:"PENDING"
             }
         })
         const destinationPath=path.join(process.cwd(),env.REPO_STORAGE_PATH,result.id.toString())
+        await prisma.repo.update({
+            where:{
+                id:result.id,
+                userId:userId,
+            },
+            data:{
+                status:"CLONING"
+            }
+        })
         try {
             await gitService.cloneRepository(githubUrl,destinationPath)
         } catch(err){
+            await prisma.repo.update({
+                where:{
+                    id:result.id
+                },
+                data:{
+                    status:"FAILED"
+                }
+            })
             throw err;
         }
 
-
-        return {
-            githubUrl:result.githubUrl,
-            id:result.id,
-            status:result.status,
-            userId:result.userId
-            
-        }
+        const updateRepository=await prisma.repo.update({
+            where:{
+                id:result.id
+            },
+            data:{
+                status:"READY"
+            }
+        })
+        return updateRepository
 
     }
 }
