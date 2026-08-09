@@ -1,8 +1,9 @@
 import fs from "fs/promises"
 import path from "path"
 
-const results:string[]=[]
+
 const walkRepository= async function  walkRepository (repositoryPath:string):Promise<string[]> {
+    const results:string[]=[]
 
     try{
         
@@ -23,3 +24,5 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
     }
     return results;
 }
+
+export default walkRepository;
