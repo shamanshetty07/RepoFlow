@@ -5,7 +5,7 @@ import path from "path"
 const walkRepository= async function  walkRepository (repositoryPath:string):Promise<string[]> {
     const results:string[]=[]
 
-    try{
+    
         
         const files=await fs.readdir(repositoryPath);
         for(const file of files){
@@ -18,10 +18,8 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
                 results.push(fullpath);
             }
         }
-        // continue here
-    }catch(err){
-        throw err;
-    }
+
+    
     return results;
 }
 
