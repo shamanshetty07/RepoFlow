@@ -11,7 +11,8 @@ export class RepomixService {
             process.cwd(),
             "storage/processed",
             repoId.toString(),
-            "repomix.output.xml"           
+            "repomix.output.xml"   
+        
         );
         const options={
             output:outputPath,
@@ -25,6 +26,13 @@ export class RepomixService {
             repositoryPath,
             options
         )
+        if( result==null){
+            return
+        }
+
+        return result.packResult.processedFiles;
+        // continue here
+
     }
 }
 
