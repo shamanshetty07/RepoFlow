@@ -2,7 +2,7 @@ import { GitService } from "../git/git.service.js";
 import prisma from "../config/prisma.js";
 import { env } from "../config/env.js";
 import path from "path";
-
+import { RepomixService} from "../indexing/repomix.service.js";
 
 type importRepositoryInput={
     githubUrl:string,
@@ -43,6 +43,25 @@ export class RepositoryService{
             throw err;
         }
 
+        const repomixService=new RepomixService();
+        try{
+            await repomixService.packRepository(destinationPath,result.id);
+        }catch(err){
+            await prisma.repo.update({
+                where:{
+                    id:result.id
+                },
+                data:{
+                    status:"FAILED"
+                }
+            })
+            throw err;
+        }
+        
+
+
+        
+
         const updateRepository=await prisma.repo.update({
             where:{
                 id:result.id
@@ -51,6 +70,10 @@ export class RepositoryService{
                 status:"READY"
             }
         })
+
+        
+
+
         return updateRepository
 
     }

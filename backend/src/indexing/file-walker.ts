@@ -21,6 +21,7 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
 
     
     return results;
+    
 }
 
 export default walkRepository;
