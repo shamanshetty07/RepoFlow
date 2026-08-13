@@ -31,9 +31,8 @@ export class RepomixService {
         }
 
         return result.packResult.processedFiles;
-        // continue here
+        
 
     }
 }
-
 

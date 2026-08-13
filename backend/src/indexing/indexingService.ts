@@ -4,10 +4,10 @@ import { readFile } from "fs";
 export class IndexingService{
     async indexingRepository(repositoryPath:string,repoid:number){
         const repomixService=new RepomixService();
-        const outputPath=await repomixService.packRepository(repositoryPath,repoid);
-        const repositoryContext= await readFile(outputPath,"utf-8");
-        return repositoryContext
+        const processedFiles=await repomixService.packRepository(repositoryPath,repoid);
+
+        return processedFiles;
         
-        
+
     }
 }
