@@ -36,3 +36,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 /src/generated/prisma
 storage/repositories/
 storage/processed/
+
+backend/embeddings/.venv/
+backend/embeddings/models/
+__pycache__/
+*.pyc
