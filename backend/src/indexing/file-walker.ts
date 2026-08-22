@@ -1,5 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
+import { IndexingService } from "./indexingService.js"
+import { isAwaitExpression } from "typescript"
 
 
 const walkRepository= async function  walkRepository (repositoryPath:string):Promise<string[]> {
@@ -18,9 +20,13 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
                 results.push(fullpath);
             }
         }
+    
+        const indexingService=new IndexingService();
+        await indexingService.indexingFiles(results);
 
     
-    return results;
+        return results;
+
     
 }
 

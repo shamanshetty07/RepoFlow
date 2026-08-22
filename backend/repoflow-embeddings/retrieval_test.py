@@ -60,3 +60,27 @@ for i, result in enumerate(results):
     print("\nRESULT", i + 1)
     print("Score:", result["score"])
     print(result["chunk"])
+
+
+
+#     GitHub repository
+#         ↓
+# clone / download
+#         ↓
+# repository file walker
+#         ↓
+# language detection
+#         ↓
+# Tree-sitter parser
+#         ↓
+# AST
+#         ↓
+# symbol extraction
+#         ↓
+# semantic chunk creation
+#         ↓
+# metadata + relationships
+#         ↓
+# CodeRankEmbed
+#         ↓
+# vector index
