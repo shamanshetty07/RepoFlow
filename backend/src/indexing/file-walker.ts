@@ -6,16 +6,27 @@ import { isAwaitExpression } from "typescript"
 
 const walkRepository= async function  walkRepository (repositoryPath:string):Promise<string[]> {
     const results:string[]=[]
+    const ignoredDirectories = new Set([
+   ".git",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage"
+])  
 
     
         
         const files=await fs.readdir(repositoryPath);
+
         for(const file of files){
+
             const fullpath=path.join(repositoryPath,file);
             const stats=await fs.stat(fullpath);
+            if(ignoredDirectories.has(file)){
+                continue;
+            }
             if(stats.isDirectory()){
-                const nestedFiles= await walkRepository(fullpath);
-                results.push(...nestedFiles);
+               continue;
             }else{
                 results.push(fullpath);
             }
@@ -24,10 +35,14 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
         const indexingService=new IndexingService();
         await indexingService.indexingFiles(results);
 
-    
+
         return results;
 
     
 }
 
 export default walkRepository;
+
+walkRepository("/Users/shamanshetty/RepoFlow/backend/storage/repositories/4");
+
+
