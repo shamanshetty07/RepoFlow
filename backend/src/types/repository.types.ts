@@ -1,5 +1,6 @@
 export type processedFiles={
     path:string;
+    language:string;
     content:string;
 }
 export type codeChunk={
