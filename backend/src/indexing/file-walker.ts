@@ -33,10 +33,10 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
         }
     
         const indexingService=new IndexingService();
-        await indexingService.indexingFiles(results);
+        const processedFiles=await indexingService.indexingFiles(results);
+        ch
 
 
-        return results;
 
     
 }
