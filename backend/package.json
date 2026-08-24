@@ -20,6 +20,7 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "bcrypt": "^6.0.0",
+    "code-chunk": "^0.1.14",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
@@ -28,6 +29,15 @@
     "prisma": "^7.8.0",
     "repomix": "^1.18.0",
     "simple-git": "^3.36.0",
+    "tree-sitter": "^0.25.1",
+    "tree-sitter-typescript": "^0.23.2",
     "zod": "^4.4.3"
-  }
+  },
+  "trustedDependencies": [
+    "tree-sitter-go",
+    "tree-sitter-java",
+    "tree-sitter-javascript",
+    "tree-sitter-python",
+    "tree-sitter-rust"
+  ]
 }

@@ -2,9 +2,10 @@ import fs from "fs/promises"
 import path from "path"
 import { IndexingService } from "./indexingService.js"
 import { isAwaitExpression } from "typescript"
+import { nullable } from "zod"
 
 
-const walkRepository= async function  walkRepository (repositoryPath:string):Promise<string[]> {
+const walkRepository= async function  walkRepository (repositoryPath:string):Promise<object[]> {
     const results:string[]=[]
     const ignoredDirectories = new Set([
    ".git",
@@ -34,7 +35,9 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
     
         const indexingService=new IndexingService();
         const processedFiles=await indexingService.indexingFiles(results);
-        ch
+
+        return processedFiles
+        
 
 
 

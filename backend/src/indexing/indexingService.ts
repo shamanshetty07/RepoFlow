@@ -44,7 +44,7 @@ export class IndexingService{
                 contents:contents
               })
             }
-            
+            return results;
         }   
 
     
