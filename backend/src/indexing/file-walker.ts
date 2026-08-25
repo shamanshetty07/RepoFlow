@@ -3,9 +3,12 @@ import path from "path"
 import { IndexingService } from "./indexingService.js"
 import { isAwaitExpression } from "typescript"
 import { nullable } from "zod"
+import { ChunkingService } from "./chunking.service.js"
+import { processedFiles } from "../types/repository.types.js"
 
 
-const walkRepository= async function  walkRepository (repositoryPath:string):Promise<object[]> {
+
+const walkRepository= async function  walkRepository (repositoryPath:string) {
     const results:string[]=[]
     const ignoredDirectories = new Set([
    ".git",
@@ -34,9 +37,14 @@ const walkRepository= async function  walkRepository (repositoryPath:string):Pro
         }
     
         const indexingService=new IndexingService();
-        const processedFiles=await indexingService.indexingFiles(results);
+        const processedFile=await indexingService.indexingFiles(results);
 
-        return processedFiles
+        const chunkService=new ChunkingService();
+        if(processedFile){
+            await chunkService.chunkfiles(processedFile);
+        }
+        
+        // return processedFile
         
 
 

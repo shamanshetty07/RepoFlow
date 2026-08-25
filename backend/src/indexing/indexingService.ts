@@ -5,6 +5,8 @@ import { detectLanguage } from "./language-detector.js";
 import path from "path";
 import { LanguageServiceMode } from "typescript";
 import fs from "fs/promises"
+import { processedFiles } from "../types/repository.types.js";
+
 export class IndexingService{
     
     async indexingRepository(repositoryPath:string,repoid:number){
@@ -15,7 +17,7 @@ export class IndexingService{
         return processedFiles;}
        
         async indexingFiles(files:string[]){
-            let results=[];
+            let results:processedFiles[]=[];
             const detect=new detectLanguage()
             const languageMap:  Record<string, string>= {
               ".js": "javascript",
@@ -37,13 +39,16 @@ export class IndexingService{
                language= await detect.dectector(file);
               }
               const contents=await fs.readFile(file,"utf-8");
-
+              
               results.push({
-                filePath:file,
+                path:file,
                 language:language,
-                contents:contents
+                content:contents
               })
+
             }
+
+
             return results;
         }   
 

@@ -1,7 +1,18 @@
 import { processedFiles } from "../types/repository.types.js";
+import { chunk, Language } from "code-chunk";
 export class ChunkingService{
-    chunkfiles(files:processedFiles[]){
-        
+    async chunkfiles(files:processedFiles[]){
+        // for(const file of files){
+            // console.log(`path of the file ${files[0].path} and contents ${files[0].content}`)
+            const chunks= await chunk(files[2].path,files[2].content,files[2].language);
+
+            // console.log(chunks);
+            // console.log(chunk);
+            
+            for (const chunk of chunks){
+                console.log(chunk.contextualizedText)
+            }
+        // }
     }
 }
 
