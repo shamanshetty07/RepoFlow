@@ -20,6 +20,7 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "bcrypt": "^6.0.0",
+    "chonkie": "^0.3.0",
     "code-chunk": "^0.1.14",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -34,10 +35,14 @@
     "zod": "^4.4.3"
   },
   "trustedDependencies": [
+    "@prisma/engines",
+    "prisma",
+    "tree-sitter",
     "tree-sitter-go",
     "tree-sitter-java",
     "tree-sitter-javascript",
     "tree-sitter-python",
-    "tree-sitter-rust"
+    "tree-sitter-rust",
+    "tree-sitter-typescript"
   ]
 }
