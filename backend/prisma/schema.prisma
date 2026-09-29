@@ -1,5 +1,3 @@
-
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -8,56 +6,57 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-enum Status{
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  repos     Repo[]
+}
+
+model Repo {
+  id        Int      @id @default(autoincrement())
+  githubUrl String
+  status    Status   @default(PENDING)
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  chunks    Chunk[]
+}
+
+model Chunk {
+  id         Int      @id @default(autoincrement())
+
+  repoId     Int
+  filePath   String
+  language   String?
+  content    String
+
+  chunkIndex Int
+  startIndex Int
+  endIndex   Int
+  startLine  Int
+  endLine    Int
+  tokenCount Int
+
+  embedding  Float[]
+
+  repo       Repo     @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@unique([repoId, filePath, chunkIndex])
+  @@index([repoId])
+}
+
+enum Status {
   PENDING
   CLONING
-  READY 
+  READY
   FAILED
 }
-model User{
-  id Int   @id @default(autoincrement()) 
-  name String
-  email String @unique
-  password String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  repos Repo[]
-}
-
-model Repo{
-  id Int @id @default(autoincrement())
-  githubUrl  String
-  status Status @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId Int
-  user User @relation(fields: [userId],references: [id])
-  chunk Chunks[]
-}
-
-model Chunks{
-    id Int @id @default(autoincrement())
-    repositoryId Int
-    language String
-    content String[]
-    chunkIndex Int
-    startLine Int
-    endLine Int
-    tokenCount Int 
-    embedding Int[]
-    repoid Repo @relation(fields: [repositoryId],references: [id])
-
-}
-
-
-// Chunk
-// ├── id
-// ├── repositoryId
-// ├── filePath
-// ├── language
-// ├── content        ← actual code/text
-// ├── chunkIndex
-// ├── startLine
-// ├── endLine
-// ├── tokenCount
-// └── embedding      ← vector(768)
