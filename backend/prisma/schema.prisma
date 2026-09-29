@@ -32,4 +32,32 @@ model Repo{
   updatedAt DateTime @updatedAt
   userId Int
   user User @relation(fields: [userId],references: [id])
+  chunk Chunks[]
 }
+
+model Chunks{
+    id Int @id @default(autoincrement())
+    repositoryId Int
+    language String
+    content String[]
+    chunkIndex Int
+    startLine Int
+    endLine Int
+    tokenCount Int 
+    embedding Int[]
+    repoid Repo @relation(fields: [repositoryId],references: [id])
+
+}
+
+
+// Chunk
+// ├── id
+// ├── repositoryId
+// ├── filePath
+// ├── language
+// ├── content        ← actual code/text
+// ├── chunkIndex
+// ├── startLine
+// ├── endLine
+// ├── tokenCount
+// └── embedding      ← vector(768)
