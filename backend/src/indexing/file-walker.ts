@@ -5,6 +5,7 @@ import { isAwaitExpression } from "typescript"
 import { nullable } from "zod"
 import { ChunkingService } from "./chunking.service.js"
 import { processedFiles } from "../types/repository.types.js"
+import { embeddingService} from "./embedding.service.js"
 
 
 
@@ -35,17 +36,19 @@ const walkRepository= async function  walkRepository (repositoryPath:string) {
                 results.push(fullpath);
             }
         }
-    
+        let chunks:any;
         const indexingService=new IndexingService();
         const processedFile=await indexingService.indexingFiles(results);
 
         const chunkService=new ChunkingService();
         if(processedFile){
-            await chunkService.chunkfiles(processedFile);
+             chunks= await chunkService.chunkfiles(processedFile);
         }
         
         // return processedFile
-        
+        const embeddingservice=new embeddingService()
+        const embeeddtokens=await embeddingservice.embedd(chunks)
+        console.log(embeeddtokens)
 
 
 

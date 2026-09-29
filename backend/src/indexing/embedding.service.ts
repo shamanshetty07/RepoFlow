@@ -1,19 +1,25 @@
-import { response } from "express";
-import { chunks as chunkedFiles } from "../types/repository.types.js";
 
-class embeddingService {
+import { chunks as chunkedFiles } from "../types/repository.types.js";
+let value:any;
+export class embeddingService {
+
     async embedd(result:chunkedFiles[]){
         for(const chunk of result){
-        const response=await fetch("https://localhost:8000",{
+         value=await fetch("http://localhost:8000/embeddings",{
             method:"POST",
             headers:{
                 "Content-Type":"application/json"
             },
-            body: chunk.content
+            body:  JSON.stringify({
+
+                content: chunk.content
+
+            })
 
         })
     }
-    const values=await response.json();
+    const values=await value.json();
+    console.log(values)
     
     }
 }
